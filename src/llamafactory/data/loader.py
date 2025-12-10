@@ -337,7 +337,12 @@ def get_dataset(
             dataset_dict.update(eval_dataset)
         else:
             dataset_dict["validation"] = eval_dataset
-        
-    dataset_dict = DatasetDict(dataset_dict)
+        dataset_dict = DatasetDict(dataset_dict)
 
-    return get_dataset_module(dataset_dict)
+        if data_args.tokenized_path is not None:  # save tokenized dataset to disk
+            if training_args.should_save:
+                dataset_dict.save_to_disk(data_args.tokenized_path)
+                logger.info_rank0(f"Tokenized dataset is saved at {data_args.tokenized_path}.")
+                logger.info_rank0(f"Please launch the training with `tokenized_path: {data_args.tokenized_path}`.")
+
+        return get_dataset_module(dataset_dict)
