@@ -115,7 +115,8 @@ def split_dataset(
 
             dataset_dict["validation"] = eval_dataset
 
-    return DatasetDict(dataset_dict)
+    # move to Dict packing to outside is more reasonable
+    return dataset_dict["train"], dataset_dict["validation"]
 
 
 def get_dataset_module(dataset: Union["Dataset", "DatasetDict"]) -> "DatasetModule":

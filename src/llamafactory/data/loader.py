@@ -16,7 +16,7 @@ import os
 from typing import TYPE_CHECKING, Literal, Optional, Union
 
 import numpy as np
-from datasets import Dataset, load_dataset, load_from_disk
+from datasets import Dataset, load_dataset, load_from_disk,DatasetDict
 
 from ..extras import logging
 from ..extras.constants import FILEEXT2TYPE
@@ -310,10 +310,16 @@ def get_dataset(
             return_dict=data_args.eval_on_each_dataset,
         )
 
+
+
     with training_args.main_process_first(desc="pre-process dataset", local=(not data_args.data_shared_file_system)):
-        dataset = _get_preprocessed_dataset(
-            dataset, data_args, training_args, stage, template, tokenizer, processor, is_eval=False
+        # move split_dataset here to ensure eval_dataset is not None (can be pass to '_get_preprocessed_dataset').
+        train_dataset, eval_dataset = split_dataset(dataset, eval_dataset, data_args, seed=training_args.seed)
+
+        train_dataset = _get_preprocessed_dataset(
+            train_dataset, data_args, training_args, stage, template, tokenizer, processor, is_eval=False
         )
+
         if isinstance(eval_dataset, dict):
             for eval_name, eval_data in eval_dataset.items():
                 eval_dataset[eval_name] = _get_preprocessed_dataset(
@@ -324,11 +330,14 @@ def get_dataset(
                 eval_dataset, data_args, training_args, stage, template, tokenizer, processor, is_eval=True
             )
 
-        dataset_dict = split_dataset(dataset, eval_dataset, data_args, seed=training_args.seed)
-        if data_args.tokenized_path is not None:  # save tokenized dataset to disk
-            if training_args.should_save:
-                dataset_dict.save_to_disk(data_args.tokenized_path)
-                logger.info_rank0(f"Tokenized dataset is saved at {data_args.tokenized_path}.")
-                logger.info_rank0(f"Please launch the training with `tokenized_path: {data_args.tokenized_path}`.")
+        dataset_dict = {
+            "train": train_dataset,
+        }
+        if isinstance(eval_dataset, dict):
+            dataset_dict.update(eval_dataset)
+        else:
+            dataset_dict["validation"] = eval_dataset
+        
+    dataset_dict = DatasetDict(dataset_dict)
 
-        return get_dataset_module(dataset_dict)
+    return get_dataset_module(dataset_dict)
